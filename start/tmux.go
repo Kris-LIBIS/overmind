@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DarthSim/overmind/v2/utils"
+	"github.com/Kris-LIBIS/overmind/utils"
 	"golang.org/x/term"
 )
 

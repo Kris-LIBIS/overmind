@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DarthSim/overmind/v2/utils"
+	"github.com/Kris-LIBIS/overmind/utils"
 	gonanoid "github.com/matoous/go-nanoid"
 	"github.com/sevlyar/go-daemon"
 )

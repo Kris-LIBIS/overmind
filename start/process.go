@@ -6,7 +6,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DarthSim/overmind/v2/utils"
+	"github.com/Kris-LIBIS/overmind/utils"
 )
 
 const runningCheckInterval = 100 * time.Millisecond

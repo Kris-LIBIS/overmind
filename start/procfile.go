@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"syscall"
 
-	"github.com/DarthSim/overmind/v2/utils"
+	"github.com/Kris-LIBIS/overmind/utils"
 )
 
 var procfileRe = regexp.MustCompile(`^([\w-]+):\s+(.+)$`)
