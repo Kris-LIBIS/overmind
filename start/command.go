@@ -91,7 +91,7 @@ func newCommand(h *Handler) (*command, error) {
 		isIgnored := len(ignoredProcNames) != 0 && utils.StringsContain(ignoredProcNames, e.OrigName)
 
 		if shouldRun && !isIgnored {
-			c.processes[e.Name] = newProcess(
+			c.processes = append(c.processes, newProcess(
 				c.tmux,
 				e.Name,
 				colors[i%len(colors)],
@@ -102,7 +102,7 @@ func newCommand(h *Handler) (*command, error) {
 				(h.AnyCanDie || utils.StringsContain(canDie, e.OrigName)),
 				utils.StringsContain(autoRestart, e.OrigName),
 				e.StopSignal,
-			)
+			))
 		}
 	}
 
@@ -165,23 +165,6 @@ func (c *command) Run() (int, error) {
 
 func (c *command) Quit() {
 	c.stopTrig <- syscall.SIGINT
-}
-
-func (c *command) createScriptFile(e *procfileEntry, shell string, setPort bool) string {
-	scriptFile, err := os.Create(filepath.Join(c.scriptDir, e.Name))
-	utils.FatalOnErr(err)
-
-	fmt.Fprintf(scriptFile, "#!/usr/bin/env %s\n", shell)
-	if setPort {
-		fmt.Fprintf(scriptFile, "export PORT=%d\n", e.Port)
-	}
-	fmt.Fprintln(scriptFile, e.Command)
-
-	utils.FatalOnErr(scriptFile.Chmod(0744))
-
-	utils.FatalOnErr(scriptFile.Close())
-
-	return scriptFile.Name()
 }
 
 func (c *command) checkTmux() bool {
