@@ -13,7 +13,7 @@ import (
 	"github.com/urfave/cli"
 )
 
-const version = "2.3.0"
+const version = "2.3.0-custom"
 
 func socketFlags(s, n *string) []cli.Flag {
 	return []cli.Flag{
