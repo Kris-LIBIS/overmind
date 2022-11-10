@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/DarthSim/godotenv"
-	"github.com/DarthSim/overmind/v2/start"
+	"github.com/Kris-LIBIS/overmind/start"
 
 	"github.com/urfave/cli"
 )
