@@ -1,4 +1,4 @@
-module github.com/DarthSim/overmind/v2
+module github.com/Kris-LIBIS/overmind
 
 go 1.17
 
