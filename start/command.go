@@ -102,7 +102,7 @@ func newCommand(h *Handler) (*command, error) {
 				(h.AnyCanDie || utils.StringsContain(canDie, e.OrigName)),
 				utils.StringsContain(autoRestart, e.OrigName),
 				e.StopSignal,
-			))
+			)
 		}
 	}
 
