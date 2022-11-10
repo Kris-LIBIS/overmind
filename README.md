@@ -63,10 +63,10 @@ You can download the latest release [here](https://github.com/DarthSim/overmind/
 
 ### Build Overmind from source
 
-You need Go 1.12 or later to build the project.
+You need Go 1.17 or later to build the project.
 
 ```bash
-$ GO111MODULE=on go get -u github.com/DarthSim/overmind/v2
+$ go install -u github.com/DarthSim/overmind/v2
 ```
 
 **Note:** You can update Overmind the same way.
@@ -121,6 +121,15 @@ $ overmind start -p 3000 -P 10
 $ OVERMIND_PORT=3000 OVERMIND_PORT_STEP=10 overmind start
 ```
 
+#### Disabling `PORT` variable
+
+If you don't want Overmind to set `PORT` variable, you can disable it:
+
+```bash
+$ overmind start -N
+$ OVERMIND_NO_PORT=1 overmind start
+```
+
 #### Running only the specified processes
 
 You can specify the names of processes you want to run:
@@ -130,6 +139,47 @@ $ overmind start -l web,sidekiq
 $ OVERMIND_PROCESSES=web,sidekiq overmind start
 ```
 
+#### Not running the specified processes
+
+Similar to the above, if there are some processes in the Procfile that you do not want to run:
+
+```bash
+$ overmind start -x web,sidekiq
+$ OVERMIND_IGNORED_PROCESSES=web,sidekiq overmind start
+```
+
+This takes precedence over the previous `-l` flag. i.e. if you:
+
+```bash
+$ overmind start -l web -x web
+$ OVERMIND_IGNORED_PROCESSES=web OVERMIND_PROCESSES=web overmind start
+```
+
+Nothing will start.
+
+#### Scaling processes (formation)
+
+By default, Overmind starts one instance of each process, but you can set the number of each process instances to run:
+
+```bash
+$ overmind start -m web=2,worker=5
+$ OVERMIND_FORMATION=web=2,worker=5 overmind start
+```
+
+There is a special name `all` that you can use to scale all processes at once:
+
+```bash
+$ overmind start -m all=2,worker=5
+$ OVERMIND_FORMATION=all=2,worker=5 overmind start
+```
+
+If you set instances number of some process to zero, this process won't be run:
+
+```bash
+$ overmind start -m some_production_task=0
+$ OVERMIND_FORMATION=some_production_task=0 overmind start
+```
+
 #### Processes that can die
 
 Usually, when a process dies, Overmind will interrupt all other processes. However, you can specify processes that can die without interrupting all other ones:
@@ -137,6 +187,13 @@ Usually, when a process dies, Overmind will interrupt all other processes. Howev
 ```bash
 $ overmind start -c assets,npm_install
 $ OVERMIND_CAN_DIE=assets,npm_install overmind start
+```
+
+Also, you can allow all processes to die:
+
+```bash
+$ overmind start --any-can-die
+$ OVERMIND_ANY_CAN_DIE=1 overmind start
 ```
 
 #### Auto-restarting processes
@@ -164,10 +221,12 @@ If you want Overmind to always use these colors, you can specify them in the [en
 If you need to gain access to process input, you can connect to its `tmux` window:
 
 ```bash
-$ overmind connect [process_name]
+$ overmind connect <process_name>
 ```
 
-You can safely disconnet from the window by hitting `Ctrl b` and then `d`.
+You can safely disconnect from the window by hitting `Ctrl b` (or your tmux prefix) and then `d`.
+
+You can omit the process name to connect to the first process defined in the Procfile.
 
 ### Restarting a process
 
@@ -233,10 +292,10 @@ OVERMIND_PORT=3000
 
 For example, if you want to use a separate `Procfile.dev` by default on a local environment, create `.overmind.env` file with `OVERMIND_PROCFILE=Procfile.dev`. Now, Overmind uses `Procfile.dev` by default.
 
-You can specify additional env file to load with `OVERMIND_ENV` variable:
+You can specify additional env files to load with `OVERMIND_ENV` variable:
 
 ```bash
-$ OVERMIND_ENV=path/to/env overmind s
+$ OVERMIND_ENV=./.env.local,./.env.development overmind s
 ```
 
 The files will be loaded in the following order:
@@ -294,6 +353,30 @@ $ overmind restart -s path/to/socket sidekiq
 $ overmind kill -s path/to/socket
 ```
 
+#### Using TCP network
+
+Overmind can bind its command center to a TCP address instead of Unix socket. It is useful when you run it on a remote machine.
+
+```bash
+$ overmind start -s "0.0.0.0:4321" -S "tcp"
+$ OVERMIND_SOCKET="0.0.0.0:4321" OVERMIND_NETWORK="tcp" overmind start
+```
+
+You need to pass the same flags to other commands:
+
+```bash
+$ overmind connect -s "0.0.0.0:4321" -S "tcp" web
+```
+
+### Specifying tmux config
+
+Overmind can use a specified tmux config. This is useful if you want to differentiate from your main tmux window, for example adding a custom status line for Overmind or a different prefix key.
+
+```bash
+overmind start -F ~/overmind.tmux.conf
+OVERMIND_TMUX_CONFIG=~/.overmind.tmux.conf overmind start
+```
+
 ### Nested Procfile
 
 Overmind supports an extension to the Procfile syntax to reuse other Procfiles
@@ -328,7 +411,7 @@ All operating systems have limitations on Unix socket path length. Try to use a 
 
 ### Overmind exits after `pg_ctl --wait start` and keeps PostgreSQL server running
 
-Since version 12.0 `pg_ctl --wait start` exits right after starting the server. Just use `postres` command directly.
+Since version 12.0 `pg_ctl --wait start` exits right after starting the server. Just use `postgres` command directly.
 
 ## Author
 

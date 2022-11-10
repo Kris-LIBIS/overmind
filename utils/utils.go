@@ -68,7 +68,7 @@ func WildcardMatch(pattern, str string) bool {
 	re := regexp.MustCompile(
 		fmt.Sprintf(
 			"^%s$",
-			strings.Replace(regexp.QuoteMeta(pattern), "\\*", ".*", -1),
+			strings.ReplaceAll(regexp.QuoteMeta(pattern), "\\*", ".*"),
 		),
 	)
 
@@ -109,10 +109,17 @@ func ScanLines(r io.Reader, callback func([]byte) bool) error {
 			buf.Reset()
 		}
 	}
-	if err != io.EOF {
+	if err != io.EOF && err != io.ErrClosedPipe {
 		return err
 	}
 	return nil
+}
+
+func FprintRpad(w io.Writer, str string, l int) {
+	fmt.Fprint(w, str)
+	for i := l - len(str); i > 0; i-- {
+		w.Write([]byte{' '})
+	}
 }
 
 // ConvertError converts specific errors to the standard error type

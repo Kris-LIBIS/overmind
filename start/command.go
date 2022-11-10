@@ -26,7 +26,8 @@ type command struct {
 	doneTrig  chan bool
 	doneWg    sync.WaitGroup
 	stopTrig  chan os.Signal
-	processes processesMap
+	processes []*process
+	scriptDir string
 	daemonize bool
 }
 
@@ -36,8 +37,8 @@ func newCommand(h *Handler) (*command, error) {
 	c := command{
 		timeout:   h.Timeout,
 		doneTrig:  make(chan bool, len(procs)),
-		stopTrig:  make(chan os.Signal),
-		processes: make(processesMap),
+		stopTrig:  make(chan os.Signal, 1),
+		processes: make([]*process, 0, len(procs)),
 		daemonize: h.Daemonize,
 	}
 
@@ -67,6 +68,7 @@ func newCommand(h *Handler) (*command, error) {
 	c.output = newMultiOutput(procs.MaxNameLength())
 
 	procNames := utils.SplitAndTrim(h.ProcNames)
+	ignoredProcNames := utils.SplitAndTrim(h.IgnoredProcNames)
 
 	colors := defaultColors
 	if len(h.Colors) > 0 {
@@ -76,12 +78,19 @@ func newCommand(h *Handler) (*command, error) {
 	canDie := utils.SplitAndTrim(h.CanDie)
 	autoRestart := utils.SplitAndTrim(h.AutoRestart)
 
+	c.scriptDir = filepath.Join(os.TempDir(), instanceID)
+	os.MkdirAll(c.scriptDir, 0700)
+
 	for i, e := range procs {
 		dir, err := filepath.Abs(filepath.Dir(e.Procfile))
 		if err != nil {
 			utils.FatalOnErr(err)
 		}
-		if len(procNames) == 0 || utils.StringsContain(procNames, e.OrigName) {
+
+		shouldRun := len(procNames) == 0 || utils.StringsContain(procNames, e.OrigName)
+		isIgnored := len(ignoredProcNames) != 0 && utils.StringsContain(ignoredProcNames, e.OrigName)
+
+		if shouldRun && !isIgnored {
 			c.processes[e.Name] = newProcess(
 				c.tmux,
 				e.Name,
@@ -90,19 +99,24 @@ func newCommand(h *Handler) (*command, error) {
 				dir,
 				e.Port,
 				c.output,
-				utils.StringsContain(canDie, e.OrigName),
+				(h.AnyCanDie || utils.StringsContain(canDie, e.OrigName)),
 				utils.StringsContain(autoRestart, e.OrigName),
 				e.StopSignal,
-			)
+			))
 		}
 	}
 
-	c.cmdCenter = newCommandCenter(&c, h.SocketPath)
+	if len(c.processes) == 0 {
+		return nil, errors.New("No processes to run")
+	}
+
+	c.cmdCenter = newCommandCenter(&c, h.SocketPath, h.Network)
 
 	return &c, nil
 }
 
 func (c *command) Run() (int, error) {
+	defer os.RemoveAll(c.scriptDir)
 	defer c.output.Stop()
 
 	fmt.Printf("\033]0;%s | overmind\007", c.title)
@@ -153,8 +167,25 @@ func (c *command) Quit() {
 	c.stopTrig <- syscall.SIGINT
 }
 
+func (c *command) createScriptFile(e *procfileEntry, shell string, setPort bool) string {
+	scriptFile, err := os.Create(filepath.Join(c.scriptDir, e.Name))
+	utils.FatalOnErr(err)
+
+	fmt.Fprintf(scriptFile, "#!/usr/bin/env %s\n", shell)
+	if setPort {
+		fmt.Fprintf(scriptFile, "export PORT=%d\n", e.Port)
+	}
+	fmt.Fprintln(scriptFile, e.Command)
+
+	utils.FatalOnErr(scriptFile.Chmod(0744))
+
+	utils.FatalOnErr(scriptFile.Close())
+
+	return scriptFile.Name()
+}
+
 func (c *command) checkTmux() bool {
-	return utils.RunCmd("which", "tmux") == nil
+	return utils.RunCmd("tmux", "-V") == nil
 }
 
 func (c *command) startCommandCenter() {
@@ -181,7 +212,7 @@ func (c *command) runProcesses() {
 }
 
 func (c *command) waitForExit() {
-	signal.Notify(c.stopTrig, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(c.stopTrig, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 
 	c.waitForDoneOrStop()
 

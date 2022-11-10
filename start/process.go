@@ -3,7 +3,6 @@ package start
 import (
 	"fmt"
 	"io"
-	"os"
 	"syscall"
 	"time"
 
@@ -15,7 +14,7 @@ const runningCheckInterval = 100 * time.Millisecond
 type process struct {
 	output *multiOutput
 
-	proc *os.Process
+	pid int
 
 	stopSignal   syscall.Signal
 	canDie       bool
@@ -29,15 +28,13 @@ type process struct {
 	tmux *tmuxClient
 
 	in  io.Writer
-	out io.Reader
+	out io.ReadCloser
 
 	Name    string
 	Color   int
 	Command string
 	Dir     string
 }
-
-type processesMap map[string]*process
 
 func newProcess(tmux *tmuxClient, name string, color int, command, dir string, port int, output *multiOutput, canDie bool, autoRestart bool, stopSignal syscall.Signal) *process {
 	out, in := io.Pipe()
@@ -73,21 +70,13 @@ func (p *process) StartObserving() {
 	if !p.Running() {
 		p.waitPid()
 
-		p.output.WriteBoldLinef(p, "Started with pid %v...", p.Pid())
+		p.output.WriteBoldLinef(p, "Started with pid %v...", p.pid)
 
 		go p.scanOuput()
 		go p.observe()
 	}
 
 	p.Wait()
-}
-
-func (p *process) Pid() int {
-	if p.proc == nil {
-		return 0
-	}
-
-	return -p.proc.Pid
 }
 
 func (p *process) Wait() {
@@ -102,7 +91,12 @@ func (p *process) Wait() {
 }
 
 func (p *process) Running() bool {
-	return p.proc != nil && p.proc.Signal(syscall.Signal(0)) == nil
+	if pid := p.pid; pid > 0 {
+		err := syscall.Kill(pid, syscall.Signal(0))
+		return err == nil || err == syscall.EPERM
+	}
+
+	return false
 }
 
 func (p *process) Stop(keepAlive bool) {
@@ -116,7 +110,9 @@ func (p *process) Stop(keepAlive bool) {
 
 	if p.Running() {
 		p.output.WriteBoldLine(p, []byte("Interrupting..."))
-		p.proc.Signal(p.stopSignal)
+		if err := p.groupSignal(p.stopSignal); err != nil {
+			p.output.WriteErr(p, fmt.Errorf("Can's stop: %s", err))
+		}
 	}
 
 	p.interrupted = true
@@ -127,7 +123,9 @@ func (p *process) Kill(keepAlive bool) {
 
 	if p.Running() {
 		p.output.WriteBoldLine(p, []byte("Killing..."))
-		p.proc.Signal(syscall.SIGKILL)
+		if err := p.groupSignal(syscall.SIGKILL); err != nil {
+			p.output.WriteErr(p, fmt.Errorf("Can's kill: %s", err))
+		}
 	}
 }
 
@@ -141,10 +139,18 @@ func (p *process) waitPid() {
 	defer ticker.Stop()
 
 	for range ticker.C {
-		if p.Pid() != 0 {
+		if p.pid > 0 {
 			break
 		}
 	}
+}
+
+func (p *process) groupSignal(s syscall.Signal) error {
+	if pid := p.pid; pid > 0 {
+		return syscall.Kill(-pid, s)
+	}
+
+	return nil
 }
 
 func (p *process) scanOuput() {
@@ -164,13 +170,14 @@ func (p *process) observe() {
 	for range ticker.C {
 		if !p.Running() {
 			if !p.keepingAlive {
+				p.out.Close()
 				p.output.WriteBoldLine(p, []byte("Exited"))
 				p.keepingAlive = true
 			}
 
 			if !p.canDieNow {
 				p.keepingAlive = false
-				p.proc = nil
+				p.pid = 0
 
 				if p.restart || (!p.interrupted && p.autoRestart) {
 					p.respawn()
@@ -190,7 +197,11 @@ func (p *process) respawn() {
 	p.canDieNow = p.canDie
 	p.interrupted = false
 
+	p.out, p.in = io.Pipe()
+	go p.scanOuput()
+
 	p.tmux.RespawnProcess(p)
 
 	p.waitPid()
+	p.output.WriteBoldLinef(p, "Restarted with pid %v...", p.pid)
 }

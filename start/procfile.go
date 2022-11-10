@@ -10,6 +10,8 @@ import (
 	"github.com/DarthSim/overmind/v2/utils"
 )
 
+var procfileRe = regexp.MustCompile(`^([\w-]+):\s+(.+)$`)
+
 type procfileEntry struct {
 	Name     string
 	Command  string
@@ -59,7 +61,7 @@ func resolveProcs(h *Handler) (ps procs) {
 		}
 
 		if names[iname] {
-			utils.Fatal("Process names must be uniq")
+			utils.Fatal("Process names must be unique")
 		}
 		names[iname] = true
 
@@ -131,7 +133,7 @@ func parseProcfile(procfile string, absDir string) (pf procfile) {
 	utils.FatalOnErr(err)
 
 	if len(pf) == 0 {
-		utils.Fatal(fmt.Sprintf("No entries was found in '%s'", procfile))
+		utils.Fatal(fmt.Sprintf("No entries were found in '%s'", procfile))
 	}
 
 	return

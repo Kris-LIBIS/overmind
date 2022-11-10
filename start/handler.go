@@ -31,11 +31,15 @@ type Handler struct {
 	Procfile           string
 	Root               string
 	Timeout            int
+	NoPort             bool
 	PortBase, PortStep int
 	ProcNames          string
+	IgnoredProcNames   string
 	SocketPath         string
+	Network            string
 	SocketName         string
 	CanDie             string
+	AnyCanDie          bool
 	AutoRestart        string
 	Colors             []int
 	Formation          map[string]int
@@ -43,6 +47,7 @@ type Handler struct {
 	StopSignals        map[string]syscall.Signal
 	Daemonize          bool
 	TmuxConfigPath     string
+	Shell              string
 }
 
 // AbsRoot returns absolute path to the working directory
